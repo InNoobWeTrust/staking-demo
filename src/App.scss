@@ -1,0 +1,56 @@
+.App {
+  text-align: center;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: url('./assets/images/staking_background.png') center center/cover no-repeat;
+}
+
+.staking{
+  top: 10%;
+  position: fixed;
+}
+
+.loading-modal {
+  top: 8%;
+  position: fixed;
+  display: flex;
+  background-color: #100015!important;
+  .loading-spinner {
+    width: 100%;
+    margin: auto;
+  }
+}
+
+.cutom-dropdown-item {
+  background-color: #100015;
+}
+
+.wrong-chain {
+  color: white;
+}
+
+.select-chain-modal {
+  top: 40%;
+  left: 40%;
+  position: fixed!important;
+  margin: auto!important;
+  width: 20%!important;
+  color: white!important;
+  background-color: #2c2b2b!important;
+  border-radius: 5%;
+}
+
+.chain-body-modal {
+  background-color: #2c2b2b!important;
+}
+
+.icon-class {
+  width: 20%;
+  height: 10%;
+}
+
+.select-item {
+  display: flex;
+  flex-direction: row;
+}
