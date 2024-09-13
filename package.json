@@ -25,6 +25,7 @@
     "@web3-onboard/taho": "^2.0.5",
     "@web3-onboard/trezor": "^2.4.4",
     "@web3-onboard/trust": "^2.0.4",
+    "@web3-onboard/wagmi": "^2.0.1",
     "@web3-onboard/walletconnect": "^2.5.4",
     "ajv": "^8.16.0",
     "ajv-keywords": "^5.1.0",
@@ -52,9 +53,12 @@
   },
   "scripts": {
     "start": "npm run server | npm run client",
+    "pre-client": "wagmi generate",
     "client": "react-scripts start",
     "server": "node server/server.js",
+    "pre-build": "wagmi generate",
     "build": "react-scripts build",
+    "pre-test": "wagmi generate",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -77,6 +81,7 @@
     ]
   },
   "devDependencies": {
+    "@wagmi/cli": "^2.1.15",
     "sass": "^1.72.0"
   }
 }
