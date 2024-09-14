@@ -53,14 +53,14 @@
   },
   "scripts": {
     "start": "npm run server | npm run client",
-    "pre-client": "wagmi generate",
-    "client": "react-scripts start",
+    "preclient": "wagmi generate",
+    "client": "craco start",
     "server": "node server/server.js",
-    "pre-build": "wagmi generate",
-    "build": "react-scripts build",
-    "pre-test": "wagmi generate",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "prebuild": "wagmi generate",
+    "build": "craco build",
+    "pretest": "wagmi generate",
+    "test": "craco test",
+    "eject": "craco eject"
   },
   "eslintConfig": {
     "extends": [
@@ -81,6 +81,7 @@
     ]
   },
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
     "@wagmi/cli": "^2.1.15",
     "sass": "^1.72.0"
   }
