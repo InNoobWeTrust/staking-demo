@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Row, Col } from 'reactstrap';
-import { ethers, BigNumber } from 'ethers';
 import logo from '../assets/images/logo.png';
 import ADDRESSES from '../utils/constants/ADDRESSES.json';
 import { StyledButton, StyledWrapper, ToggleButtons } from './StyledComponent';
 import ConnectWallet from './blocknative/ConnectWallet';
-import { getPartnerAIContract, getStakingContract, getPARTAIBalance } from './ConnectContract';
 import ErroModal from './ErroModal';
 import Loading from './Loading';
 import CAlert from './CAlert';
+import { readStakingContractPlans, readPartnerAiContractAllowance, readStakingContractCanWithdrawAmount, readStakingContractEarnedToken, readStakingContractTotalRewardsPerWalletPerPlan, readPartnerAiContractBalanceOf } from '../contract.generated';
+import { useWagmiConfig } from '@web3-onboard/react';
+import { formatEther, parseEther } from 'viem';
 
 const Staking = () => {
     const [walletAddress, setWalletAddress] = useState("");
@@ -18,22 +19,24 @@ const Staking = () => {
     const [aContent, setAContent] = useState("Success");
     const [timestamp, setTimestamp] = useState('30');
     const [direction, setDirection] = useState('Stake');
-    const [stakeAmount, setStakeAmount] = useState(0); 
-    const [errorContent, setErrorContent] = useState(""); 
-    const [ allowanceValue, setAllowanceValue ] = useState(0);
+    const [stakeAmount, setStakeAmount] = useState(0);
+    const [errorContent, setErrorContent] = useState("");
+    const [allowanceValue, setAllowanceValue] = useState(0);
     const [stakingInfo, setStakingInfo] = useState({
         totalStaked: '0',
         canWithdraw: '0',
         totalClaimed: '0',
         pendingReward: '0',
-        apy:'0'
+        apy: '0'
     })
     const toggleTimestamp = (timestamp) => setTimestamp(timestamp);
     const toggleDirection = (direction) => setDirection(direction);
     const [errorFlag, setErrorFlag] = useState(false);
     const [account, setAccount] = useState(null);
     const toggle = () => setErrorFlag(!errorFlag);
-    
+
+    const wagmiConfig = useWagmiConfig();
+
     useEffect(() => {
         if (account) {
             const walletAdd = account.address
@@ -46,26 +49,24 @@ const Staking = () => {
                 canWithdraw: '0',
                 totalClaimed: '0',
                 pendingReward: '0',
-                apy:'0' 
+                apy: '0'
             })
         }
         // eslint-disable-next-line
     }, [account, timestamp]);
-    
+
     const getValueByPlan = async (stakingId, _walletAddress) => {
-        const stakingContract = getStakingContract()
-        const tokenContract = getPartnerAIContract()
-        const allowValue = await tokenContract.allowance(_walletAddress, ADDRESSES.STAKING_ADDRESS);
+        const allowValue = await readPartnerAiContractAllowance(wagmiConfig, { args: [_walletAddress, ADDRESSES.STAKING_ADDRESS] });
         setAllowanceValue(allowValue)
-        const plan = await stakingContract.plans(stakingId)
-        let canWithdraw = (await stakingContract.canWithdrawAmount(stakingId, _walletAddress))
+        const plan = await readStakingContractPlans(wagmiConfig, { args: [stakingId] })
+        let canWithdraw = await readStakingContractCanWithdrawAmount(wagmiConfig, { args: [stakingId, _walletAddress] })
         let totalStaked = canWithdraw[0];
-        totalStaked = parseFloat(ethers.utils.formatUnits(totalStaked)).toString()
-        canWithdraw = parseFloat(ethers.utils.formatUnits(canWithdraw[1])).toString()
-        let pendingReward = (await stakingContract.earnedToken(stakingId, _walletAddress))
-        pendingReward = parseFloat(ethers.utils.formatUnits(pendingReward)).toString()
-        let totalClaimed = (await stakingContract.totalRewardsPerWalletPerPlan(stakingId, _walletAddress))
-        totalClaimed = parseFloat(ethers.utils.formatUnits(totalClaimed)).toString()
+        totalStaked = parseFloat(formatEther(totalStaked)).toString()
+        canWithdraw = parseFloat(formatEther(canWithdraw[1])).toString()
+        let pendingReward = (await readStakingContractEarnedToken(wagmiConfig, { args: [stakingId, _walletAddress] }))
+        pendingReward = parseFloat(formatEther(pendingReward)).toString()
+        let totalClaimed = (await readStakingContractTotalRewardsPerWalletPerPlan(wagmiConfig, { args: [stakingId, _walletAddress] }))
+        totalClaimed = parseFloat(formatEther(totalClaimed)).toString()
         let apy = plan.apr.toString();
         setStakingInfo({
             totalStaked,
@@ -79,15 +80,15 @@ const Staking = () => {
 
     // Get stakingId by timestamp
     const getStakingId = () => {
-        let sId = BigNumber.from(0);
-        if(timestamp === '30') {
-            sId = BigNumber.from(0);
-        } else if(timestamp === '60') {
-            sId = BigNumber.from(1);
-        } else if(timestamp === '90') {
-            sId = BigNumber.from(2);
-        } else if(timestamp === '120') {
-            sId = BigNumber.from(3);
+        let sId = 0n;
+        if (timestamp === '30') {
+            sId = 0n;
+        } else if (timestamp === '60') {
+            sId = 1n;
+        } else if (timestamp === '90') {
+            sId = 2n;
+        } else if (timestamp === '120') {
+            sId = 3n;
         } else {
             setErrorFlag(true)
             setErrorContent("Please select staking pool!")
@@ -95,16 +96,16 @@ const Staking = () => {
         }
         return sId;
     }
-    
+
     // Alert dismiss function
     const onDismiss = () => setAlertFlag(false);
 
     // Get all token of owner wallet when user click 'max' button
     const getAllToken = async () => {
-        if(direction === 'Stake'){
-            const tokenBalance = await getPARTAIBalance(walletAddress)
+        if (direction === 'Stake') {
+            const tokenBalance = parseFloat(formatEther(await readPartnerAiContractBalanceOf(wagmiConfig, { args: [walletAddress] })));
             setStakeAmount(tokenBalance)
-        } else if(direction === 'Withdraw') {
+        } else if (direction === 'Withdraw') {
             setStakeAmount(stakingInfo.canWithdraw)
         }
     }
@@ -113,11 +114,11 @@ const Staking = () => {
         setLoading(true)
         const tokenContract = getPartnerAIContract()
         const stakingContract = getStakingContract()
-        let amount = ethers.utils.parseEther(stakeAmount.toString());
+        let amount = parseEther(stakeAmount.toString());
         const stakingId = getStakingId();
-        if(direction === "Claim") {
+        if (direction === "Claim") {
             try {
-                if(Number(stakingInfo.pendingReward) === 0) {
+                if (Number(stakingInfo.pendingReward) === 0) {
                     setAContent("You don't have claimed value.")
                     setAlertFlag(true)
                     setType("danger")
@@ -131,25 +132,25 @@ const Staking = () => {
                     setAlertFlag(true)
                     setType("info")
                 }
-            } catch(err) {
+            } catch (err) {
                 setErrorContent("Claim issue!")
                 console.log(err)
                 setErrorFlag(true)
                 setLoading(false)
             }
-        } else if(Number(stakeAmount) === 0){
-            if(direction === 'Stake'){
+        } else if (Number(stakeAmount) === 0) {
+            if (direction === 'Stake') {
                 setAContent("Staking Amount cannot be zero")
-            } else if(direction === 'Withdraw'){
+            } else if (direction === 'Withdraw') {
                 setAContent("Withdraw Amount cannot be zero")
             }
             setAlertFlag(true)
             setType("danger")
             setLoading(false)
         } else {
-            if(direction === 'Stake') {
-                const tokenBalance = await getPARTAIBalance(walletAddress)
-                if(stakeAmount > tokenBalance){
+            if (direction === 'Stake') {
+                const tokenBalance = parseFloat(formatEther(await readPartnerAiContractBalanceOf(wagmiConfig, { args: [walletAddress] })));
+                if (stakeAmount > tokenBalance) {
                     setAContent("Balance is not enough")
                     setAlertFlag(true)
                     setType("danger")
@@ -157,16 +158,16 @@ const Staking = () => {
                 } else {
                     try {
                         const planStatus = await stakingContract.plans(stakingId)
-                        if(planStatus.conclude){
+                        if (planStatus.conclude) {
                             setErrorContent("Your plan is concluded!")
                             setErrorFlag(true)
                             setLoading(false)
                         } else {
-                            
-                            if(Number(amount) > Number(allowanceValue)) {
+
+                            if (Number(amount) > Number(allowanceValue)) {
                                 const approve = await tokenContract.approve(ADDRESSES.STAKING_ADDRESS, amount)
                                 await approve.wait()
-                            } 
+                            }
                             const staking = await stakingContract.stake(stakingId, amount)
                             await staking.wait()
                             getValueByPlan(stakingId, walletAddress);
@@ -174,16 +175,16 @@ const Staking = () => {
                             setAContent("Staking Success!")
                             setAlertFlag(true)
                             setType("info")
-                            
+
                         }
-                    } catch(err) {
+                    } catch (err) {
                         setLoading(false)
-                        console.log("ski312-err",err)
+                        console.log("ski312-err", err)
                     }
                 }
-            } else if(direction === "Withdraw") {
+            } else if (direction === "Withdraw") {
                 try {
-                    if(stakeAmount > Number(stakingInfo.totalStaked)){
+                    if (stakeAmount > Number(stakingInfo.totalStaked)) {
                         setAContent(`You can't withdraw more than ${stakingInfo.canWithdraw}`)
                         setAlertFlag(true)
                         setType("danger")
@@ -197,7 +198,7 @@ const Staking = () => {
                         setAlertFlag(true)
                         setType("info")
                     }
-                } catch(err) {
+                } catch (err) {
                     setErrorContent("Withdraw issue!")
                     console.log(err)
                     setErrorFlag(true)
@@ -205,27 +206,27 @@ const Staking = () => {
                 }
             }
         }
-        
+
     }
 
     const handleChange = (e) => {
         setStakeAmount(e.target.value);
     };
-    
+
     return (
         <div className='staking d-flex align-items-center justify-content-center'>
-            <div style={{flexDirection: "row"}} >
+            <div style={{ flexDirection: "row" }} >
                 <CAlert alertFlag={alertFlag} type={type} aContent={aContent} onDismiss={onDismiss} />
                 <StyledWrapper className='p-3'>
                     <div className='col-12 d-flex justify-content-between my-2'>
                         <img src={logo} alt="logo" style={{ height: 40 }} />
-                        <ConnectWallet 
-                            setErrorFlag={setErrorFlag} 
-                            setErrorContent={setErrorContent} 
+                        <ConnectWallet
+                            setErrorFlag={setErrorFlag}
+                            setErrorContent={setErrorContent}
                             getStakingId={getStakingId}
                             getValueByPlan={getValueByPlan}
                             setAccount={setAccount}
-                            account={account} 
+                            account={account}
                         />
                     </div>
                     <div className='py-2 w-100'>
@@ -326,8 +327,8 @@ const Staking = () => {
                     </StyledButton>
                 </StyledWrapper>
             </div>
-            <Loading loading={loading} />  
-            <ErroModal errorFlag={errorFlag} toggle={toggle} errorContent={errorContent} onDismiss={onDismiss}/>
+            <Loading loading={loading} />
+            <ErroModal errorFlag={errorFlag} toggle={toggle} errorContent={errorContent} onDismiss={onDismiss} />
         </div>
     )
 }
