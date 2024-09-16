@@ -1,4 +1,4 @@
-import {  init } from '@web3-onboard/react';
+import { init } from '@web3-onboard/react';
 import injectedModule, { ProviderLabel } from '@web3-onboard/injected-wallets';
 import wagmi from '@web3-onboard/wagmi'
 
@@ -22,7 +22,7 @@ const injected = injectedModule({
 
 const wallets = [
   injected,
-//   walletConnect,
+  //   walletConnect,
 ];
 
 const chains = [
@@ -55,7 +55,8 @@ export const Web3Onboard = init({
   notify: {
     enabled: false,
   },
-  apiKey: BLOCKNATIVE_API_KEY,
+  // Service is discontinued as of 16 September 2024
+  //apiKey: BLOCKNATIVE_API_KEY,
   wallets,
   chains,
   theme: "dark",

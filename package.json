@@ -7,6 +7,7 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@wagmi/core": "^2.13.5",
     "@web3-onboard/coinbase": "^2.2.7",
     "@web3-onboard/core": "^2.21.3",
     "@web3-onboard/dcent": "^2.2.7",
@@ -47,18 +48,18 @@
     "request": "^2.88.2",
     "sqlite3": "^5.1.6",
     "styled-components": "^6.1.8",
-    "typescript": "^4.9.5",
     "validator": "^13.12.0",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "npm run server | npm run client",
-    "preclient": "wagmi generate",
+    "wagmi-gen": "wagmi generate",
+    "preclient": "run-s wagmi-gen",
     "client": "craco start",
     "server": "node server/server.js",
-    "prebuild": "wagmi generate",
+    "prebuild": "run-s wagmi-gen",
     "build": "craco build",
-    "pretest": "wagmi generate",
+    "pretest": "run-s wagmi-gen",
     "test": "craco test",
     "eject": "craco eject"
   },
@@ -81,8 +82,16 @@
     ]
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7.25.1",
     "@craco/craco": "^7.1.0",
+    "@eslint/js": "^9.10.0",
+    "@stylistic/eslint-plugin": "^2.8.0",
     "@wagmi/cli": "^2.1.15",
-    "sass": "^1.72.0"
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.36.1",
+    "globals": "^15.9.0",
+    "npm-run-all": "^4.1.5",
+    "sass": "^1.72.0",
+    "typescript": "^5.6.2"
   }
 }

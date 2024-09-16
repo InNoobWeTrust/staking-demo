@@ -1,15 +1,37 @@
-import { useEffect, useState } from 'react';
-import { Row, Col } from 'reactstrap';
+import {
+    useEffect,
+    useState,
+} from 'react';
+import {
+    useWagmiConfig,
+} from '@web3-onboard/react';
+import {
+    formatEther,
+    parseEther,
+} from 'viem';
+import { waitForTransactionReceipt } from '@web3-onboard/wagmi';
 import logo from '../assets/images/logo.png';
 import ADDRESSES from '../utils/constants/ADDRESSES.json';
-import { StyledButton, StyledWrapper, ToggleButtons } from './StyledComponent';
+import { Row, Col } from 'reactstrap';
+import {
+    StyledButton, StyledWrapper, ToggleButtons,
+} from './StyledComponent';
 import ConnectWallet from './blocknative/ConnectWallet';
 import ErroModal from './ErroModal';
 import Loading from './Loading';
 import CAlert from './CAlert';
-import { readStakingContractPlans, readPartnerAiContractAllowance, readStakingContractCanWithdrawAmount, readStakingContractEarnedToken, readStakingContractTotalRewardsPerWalletPerPlan, readPartnerAiContractBalanceOf } from '../contract.generated';
-import { useWagmiConfig } from '@web3-onboard/react';
-import { formatEther, parseEther } from 'viem';
+import {
+    readPartnerAiContractAllowance,
+    readPartnerAiContractBalanceOf,
+    readStakingContractCanWithdrawAmount,
+    readStakingContractEarnedToken,
+    readStakingContractPlans,
+    readStakingContractTotalRewardsPerWalletPerPlan,
+    writePartnerAiContractApprove,
+    writeStakingContractClaimEarned,
+    writeStakingContractStake,
+    writeStakingContractUnstake,
+} from '../contract.generated';
 
 const Staking = () => {
     const [walletAddress, setWalletAddress] = useState("");
@@ -27,7 +49,7 @@ const Staking = () => {
         canWithdraw: '0',
         totalClaimed: '0',
         pendingReward: '0',
-        apy: '0'
+        apy: '0',
     })
     const toggleTimestamp = (timestamp) => setTimestamp(timestamp);
     const toggleDirection = (direction) => setDirection(direction);
@@ -49,31 +71,42 @@ const Staking = () => {
                 canWithdraw: '0',
                 totalClaimed: '0',
                 pendingReward: '0',
-                apy: '0'
+                apy: '0',
             })
         }
         // eslint-disable-next-line
     }, [account, timestamp]);
 
     const getValueByPlan = async (stakingId, _walletAddress) => {
-        const allowValue = await readPartnerAiContractAllowance(wagmiConfig, { args: [_walletAddress, ADDRESSES.STAKING_ADDRESS] });
+        const allowValue = await readPartnerAiContractAllowance(wagmiConfig, {
+            args: [_walletAddress, ADDRESSES.STAKING_ADDRESS],
+        });
         setAllowanceValue(allowValue)
-        const plan = await readStakingContractPlans(wagmiConfig, { args: [stakingId] })
-        let canWithdraw = await readStakingContractCanWithdrawAmount(wagmiConfig, { args: [stakingId, _walletAddress] })
+        const plan = await readStakingContractPlans(wagmiConfig, {
+            args: [stakingId],
+        })
+        let canWithdraw = await readStakingContractCanWithdrawAmount(wagmiConfig, {
+            args: [stakingId, _walletAddress],
+        })
         let totalStaked = canWithdraw[0];
         totalStaked = parseFloat(formatEther(totalStaked)).toString()
         canWithdraw = parseFloat(formatEther(canWithdraw[1])).toString()
-        let pendingReward = (await readStakingContractEarnedToken(wagmiConfig, { args: [stakingId, _walletAddress] }))
+        let pendingReward = (await readStakingContractEarnedToken(wagmiConfig, {
+            args: [stakingId, _walletAddress],
+        }))
         pendingReward = parseFloat(formatEther(pendingReward)).toString()
-        let totalClaimed = (await readStakingContractTotalRewardsPerWalletPerPlan(wagmiConfig, { args: [stakingId, _walletAddress] }))
+        let totalClaimed = (await readStakingContractTotalRewardsPerWalletPerPlan(wagmiConfig, {
+            args: [stakingId, _walletAddress],
+        }))
         totalClaimed = parseFloat(formatEther(totalClaimed)).toString()
-        let apy = plan.apr.toString();
+        // Ref: https://viem.sh/docs/faq.html#why-is-a-contract-function-return-type-returning-an-array-instead-of-an-object
+        let apy = plan[2].toString(); // `apr` field
         setStakingInfo({
             totalStaked,
             canWithdraw,
             totalClaimed,
             pendingReward,
-            apy
+            apy,
         })
     }
 
@@ -103,7 +136,9 @@ const Staking = () => {
     // Get all token of owner wallet when user click 'max' button
     const getAllToken = async () => {
         if (direction === 'Stake') {
-            const tokenBalance = parseFloat(formatEther(await readPartnerAiContractBalanceOf(wagmiConfig, { args: [walletAddress] })));
+            const tokenBalance = parseFloat(formatEther(await readPartnerAiContractBalanceOf(wagmiConfig, {
+                args: [walletAddress],
+            })));
             setStakeAmount(tokenBalance)
         } else if (direction === 'Withdraw') {
             setStakeAmount(stakingInfo.canWithdraw)
@@ -112,8 +147,6 @@ const Staking = () => {
 
     const handleSWCClick = async () => {
         setLoading(true)
-        const tokenContract = getPartnerAIContract()
-        const stakingContract = getStakingContract()
         let amount = parseEther(stakeAmount.toString());
         const stakingId = getStakingId();
         if (direction === "Claim") {
@@ -124,8 +157,12 @@ const Staking = () => {
                     setType("danger")
                     setLoading(false)
                 } else {
-                    const claim = await stakingContract.claimEarned(stakingId);
-                    await claim.wait()
+                    const claimHash = await writeStakingContractClaimEarned(wagmiConfig, {
+                        args: [stakingId],
+                    });
+                    waitForTransactionReceipt(wagmiConfig, {
+                        hash: claimHash,
+                    });
                     getValueByPlan(stakingId, walletAddress);
                     setLoading(false)
                     setAContent("Claim Success!")
@@ -149,7 +186,9 @@ const Staking = () => {
             setLoading(false)
         } else {
             if (direction === 'Stake') {
-                const tokenBalance = parseFloat(formatEther(await readPartnerAiContractBalanceOf(wagmiConfig, { args: [walletAddress] })));
+                const tokenBalance = parseFloat(formatEther(await readPartnerAiContractBalanceOf(wagmiConfig, {
+                    args: [walletAddress],
+                })));
                 if (stakeAmount > tokenBalance) {
                     setAContent("Balance is not enough")
                     setAlertFlag(true)
@@ -157,7 +196,7 @@ const Staking = () => {
                     setLoading(false)
                 } else {
                     try {
-                        const planStatus = await stakingContract.plans(stakingId)
+                        const planStatus = await readStakingContractPlans(wagmiConfig, { args: [stakingId] })
                         if (planStatus.conclude) {
                             setErrorContent("Your plan is concluded!")
                             setErrorFlag(true)
@@ -165,11 +204,19 @@ const Staking = () => {
                         } else {
 
                             if (Number(amount) > Number(allowanceValue)) {
-                                const approve = await tokenContract.approve(ADDRESSES.STAKING_ADDRESS, amount)
-                                await approve.wait()
+                                const approveHash = await writePartnerAiContractApprove(wagmiConfig, {
+                                    args: [ADDRESSES.STAKING_ADDRESS, amount],
+                                })
+                                waitForTransactionReceipt(wagmiConfig, {
+                                    hash: approveHash,
+                                })
                             }
-                            const staking = await stakingContract.stake(stakingId, amount)
-                            await staking.wait()
+                            const stakingHash = await writeStakingContractStake(wagmiConfig, {
+                                args: [stakingId, amount],
+                            })
+                            waitForTransactionReceipt(wagmiConfig, {
+                                hash: stakingHash,
+                            })
                             getValueByPlan(stakingId, walletAddress);
                             setLoading(false)
                             setAContent("Staking Success!")
@@ -190,8 +237,12 @@ const Staking = () => {
                         setType("danger")
                         setLoading(false)
                     } else {
-                        const unstake = await stakingContract.unstake(stakingId, amount);
-                        await unstake.wait()
+                        const unstakeHash = await writeStakingContractUnstake(wagmiConfig, {
+                            args: [stakingId, amount],
+                        });
+                        waitForTransactionReceipt(wagmiConfig, {
+                            hash: unstakeHash,
+                        });
                         getValueByPlan(stakingId, walletAddress);
                         setLoading(false)
                         setAContent("Withdraw Success!")
@@ -311,7 +362,7 @@ const Staking = () => {
                         <div className='d-flex flex-wrap pb-2 w-100'>
                             <div className='d-flex align-items-center justify-content-start text-start pb-2'>
                                 <span className='col-12 text-white fs-6'>
-                                    Enter mount you want to stake
+                                    Enter mount you want to {direction === 'Stake' ? 'stake' : 'withdraw'}
                                 </span>
                             </div>
                             <div className='col-12 position-relative'>
